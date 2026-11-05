@@ -1,0 +1,284 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0f172a">
+<title>Repeat After Me</title>
+<style>
+  :root {
+    --bg:#0f172a; --card:#1e293b; --text:#f1f5f9; --muted:#94a3b8;
+    --ok:#4ade80; --close:#fbbf24; --bad:#f87171; --accent:#38bdf8;
+  }
+  * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  body { margin:0; background:var(--bg); color:var(--text);
+         font:18px/1.4 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
+         min-height:100dvh; display:flex; flex-direction:column;
+         padding:env(safe-area-inset-top) 16px env(safe-area-inset-bottom); }
+  header { display:flex; justify-content:space-between; align-items:center; padding:14px 0; color:var(--muted); font-size:14px; }
+  main { flex:1; display:flex; flex-direction:column; gap:16px; max-width:560px; width:100%; margin:0 auto; }
+  .card { background:var(--card); border-radius:18px; padding:22px; }
+  #sentence { font-size:28px; font-weight:600; line-height:1.35; text-align:center; }
+  .w { display:inline-block; margin:2px 3px; padding:0 2px; }
+  .w.ok { color:var(--ok); }
+  .w.close { color:var(--close); }
+  .w.wrong, .w.missed { color:var(--bad); font-weight:800; font-size:1.18em;
+                        text-decoration:underline wavy; text-underline-offset:6px; }
+  .w small { display:block; font-size:12px; font-weight:400; color:var(--muted); text-decoration:none; }
+  .row { display:flex; gap:12px; }
+  button { font:inherit; font-weight:600; border:0; border-radius:14px; padding:16px; color:#06202e;
+           background:var(--accent); flex:1; min-height:56px; }
+  button.sec { background:#334155; color:var(--text); }
+  button.rec { background:var(--bad); }
+  button:disabled { opacity:.45; }
+  #status { text-align:center; color:var(--muted); min-height:1.4em; font-size:15px; }
+  #result { display:none; text-align:center; }
+  #score { font-size:64px; font-weight:800; line-height:1; }
+  #verdict { color:var(--muted); margin:6px 0 14px; }
+  #heard { color:var(--muted); font-size:14px; margin-top:12px; }
+  #focus { display:none; }
+  #focus h3 { margin:0 0 10px; font-size:15px; color:var(--bad); text-transform:uppercase; letter-spacing:.06em; }
+  .chip { display:inline-block; background:#334155; color:var(--text); border-radius:999px; padding:10px 16px; margin:4px; font-weight:700; border:0; flex:none; min-height:0; }
+  .tip { display:flex; align-items:center; gap:10px; margin:10px 0; text-align:left; }
+  .tip p { margin:0; font-size:15px; color:var(--text); }
+  .tip .chip { margin:0; white-space:nowrap; }
+  .tip .save { background:transparent; border:2px solid var(--accent); color:var(--accent); padding:6px 10px; min-height:0; flex:none; font-size:14px; }
+  .tip .save.on { background:var(--accent); color:#06202e; }
+  #savedList .tip p { color:var(--muted); }
+  button.hdr { flex:none; min-height:0; padding:8px 14px; background:#334155; color:var(--text); border-radius:999px; font-size:14px; }
+  #savedPanel { display:none; position:fixed; inset:0; background:var(--bg); overflow-y:auto; padding:env(safe-area-inset-top) 16px 24px; z-index:10; }
+  #savedPanel.open { display:block; }
+  .panelhead { display:flex; justify-content:space-between; align-items:center; max-width:560px; margin:0 auto; padding:14px 0; }
+  .panelhead h2 { margin:0; font-size:20px; }
+  .panelhead button { flex:none; min-height:0; padding:10px 16px; }
+  #savedList { max-width:560px; margin:0 auto; }
+  #savedList .tip { background:var(--card); border-radius:14px; padding:12px; }
+  .ipa { display:block; font-family:'Segoe UI','Noto Sans',serif; font-size:19px; color:var(--accent); margin-bottom:2px; }
+  details { color:var(--muted); font-size:14px; padding-bottom:16px; }
+  select, input[type=text] { width:100%; font:inherit; padding:10px; border-radius:10px; border:0; background:#334155; color:var(--text); margin:6px 0; }
+  .pulse { animation:p 1s infinite; }
+  @keyframes p { 50% { opacity:.6; } }
+</style>
+</head>
+<body>
+<header><span>Repeat After Me</span><span id="stats"></span><button id="openSaved" class="hdr">★ Saved</button></header>
+<main>
+  <div class="card"><div id="sentence">Loading…</div></div>
+
+  <div class="row">
+    <button id="listen" class="sec">🔊 Listen</button>
+    <button id="slow" class="sec">🐢 Slow</button>
+  </div>
+  <button id="record">🎤 Tap and repeat</button>
+  <div id="status"></div>
+
+  <div id="result" class="card">
+    <div id="score"></div>
+    <div id="verdict"></div>
+    <div id="heard"></div>
+  </div>
+  <div id="focus" class="card">
+    <h3>How to say them better</h3>
+    <div id="chips"></div>
+  </div>
+
+  <button id="next" class="sec">Next sentence ➜</button>
+
+  <details>
+    <summary>Voice &amp; options</summary>
+    <label>Voice <select id="voice"></select></label>
+    <div id="typed" style="display:none">
+      <p>Speech recognition isn't available in this browser. Type what you said:</p>
+      <input type="text" id="typedText" placeholder="Type here…">
+      <button id="typedGo">Score it</button>
+    </div>
+  </details>
+</main>
+
+<div id="savedPanel" role="dialog" aria-label="Saved words">
+  <div class="panelhead"><h2 id="savedTitle">Saved words</h2><button id="closeSaved" class="sec">Close</button></div>
+  <div id="savedList"></div>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+const synth = window.speechSynthesis;
+let current = null, rec = null, listening = false;
+
+/* ---------- voice: natural neural voice from the server, browser voice as fallback ---------- */
+const VOICES = { andrew: 'Andrew (warm)', guy: 'Guy (clear)', christopher: 'Christopher (deep)', eric: 'Eric (casual)', roger: 'Roger (mature)' };
+$('voice').innerHTML = Object.entries(VOICES).map(([k, n]) => `<option value="${k}">${n}</option>`).join('');
+try { $('voice').value = localStorage.getItem('voice') || 'andrew'; } catch (e) {}
+$('voice').onchange = () => { try { localStorage.setItem('voice', $('voice').value); } catch (e) {} };
+
+let audio = null;
+function speakBrowser(text, rate) {
+  return new Promise(res => {
+    if (!synth) return res(false);
+    synth.cancel();
+    const u = new SpeechSynthesisUtterance(text);
+    const v = synth.getVoices().find(v => /^en[-_]US$/i.test(v.lang) && /david|mark|guy|alex|daniel|fred|male/i.test(v.name));
+    if (v) u.voice = v; else u.pitch = 0.7;
+    u.lang = 'en-US'; u.rate = rate;
+    u.onend = () => res(true); u.onerror = () => res(false);
+    synth.speak(u);
+  });
+}
+async function speak(text, slow = false) {
+  if (audio) { audio.pause(); audio = null; }
+  synth && synth.cancel();
+  const url = `/api/tts/?text=${encodeURIComponent(text)}&voice=${$('voice').value}&slow=${slow ? 1 : 0}`;
+  try {
+    audio = new Audio(url);
+    await new Promise((res, rej) => { audio.onended = res; audio.onerror = rej; audio.play().catch(rej); });
+    return true;
+  } catch (e) {
+    return speakBrowser(text, slow ? 0.6 : 0.95);   // offline, or autoplay blocked
+  }
+}
+/* ---------- saved words ---------- */
+const csrf = () => (document.cookie.match(/csrftoken=([^;]+)/) || [])[1] || '';
+let saved = {};   // word -> {tip, ipa}
+const cleanWord = w => w.toLowerCase().replace(/[^a-z']/g, '');
+const send = (method, word, tip) => fetch('/api/saved/', { method, headers: { 'X-CSRFToken': csrf() }, body: JSON.stringify({ word, tip }) });
+
+function tipRow(word, tip, ipa, extra) {
+  const row = document.createElement('div');
+  row.className = 'tip';
+  const b = document.createElement('button');
+  b.className = 'chip';
+  b.textContent = '🔊 ' + word;
+  b.onclick = () => speak(word, true);
+  const p = document.createElement('p');
+  if (ipa) { const i = document.createElement('span'); i.className = 'ipa'; i.textContent = ipa; p.append(i); }
+  p.append(tip);
+  row.append(b, p);
+  if (extra) row.append(extra);
+  return row;
+}
+function saveButton(word, tip, ipa) {
+  const s = document.createElement('button');
+  s.className = 'save' + (saved[word] ? ' on' : '');
+  s.textContent = saved[word] ? '★ Saved' : '☆ Save';
+  s.onclick = async () => {
+    if (saved[word]) { await send('DELETE', word); delete saved[word]; }
+    else { await send('POST', word, tip); saved[word] = { tip, ipa }; }
+    s.className = 'save' + (saved[word] ? ' on' : '');
+    s.textContent = saved[word] ? '★ Saved' : '☆ Save';
+    renderSaved();
+  };
+  return s;
+}
+function renderSaved() {
+  const words = Object.keys(saved);
+  $('savedTitle').textContent = 'Saved words' + (words.length ? ` (${words.length})` : '');
+  $('openSaved').textContent = '★ Saved' + (words.length ? ' ' + words.length : '');
+  $('savedList').innerHTML = words.length ? '' : '<p>Tap ☆ Save on a tip to keep it here.</p>';
+  words.forEach(w => {
+    const rm = document.createElement('button');
+    rm.className = 'save';
+    rm.textContent = '✕';
+    rm.onclick = async () => { await send('DELETE', w); delete saved[w]; renderSaved(); };
+    $('savedList').appendChild(tipRow(w, saved[w].tip, saved[w].ipa, rm));
+  });
+}
+$('openSaved').onclick = () => $('savedPanel').classList.add('open');
+$('closeSaved').onclick = () => $('savedPanel').classList.remove('open');
+async function loadSaved() {
+  try {
+    const d = await (await fetch('/api/saved/')).json();
+    saved = Object.fromEntries(d.words.map(x => [x.word, { tip: x.tip, ipa: x.ipa }]));
+  } catch (e) {}
+  renderSaved();
+}
+/* ---------- sentence flow ---------- */
+function setStatus(t, cls) { $('status').textContent = t; $('status').className = cls || ''; }
+
+async function loadNext() {
+  $('result').style.display = $('focus').style.display = 'none';
+  setStatus('');
+  $('record').textContent = '🎤 Tap and repeat';
+  const r = await fetch('/api/next/' + (current ? '?exclude=' + current.id : ''));
+  const d = await r.json();
+  if (!r.ok) { $('sentence').textContent = d.error; return; }
+  current = d;
+  $('sentence').textContent = d.text;
+  refreshStats();
+  await speak(d.text);
+}
+async function refreshStats() {
+  const s = await (await fetch('/api/stats/')).json();
+  $('stats').textContent = s.attempts ? `${s.attempts} tries · avg ${s.average}%` : '';
+}
+
+/* ---------- recording ---------- */
+function startListening() {
+  if (!SR) { $('typed').parentElement.open = true; $('typed').style.display = 'block'; setStatus('Use the typed fallback below.'); return; }
+  synth && synth.cancel();
+  rec = new SR();
+  rec.lang = 'en-US'; rec.interimResults = true; rec.maxAlternatives = 1; rec.continuous = false;
+  let finalText = '';
+  rec.onresult = e => {
+    let t = '';
+    for (const r of e.results) { t += r[0].transcript + ' '; }
+    finalText = t.trim();
+    setStatus('“' + finalText + '”');
+  };
+  rec.onerror = e => {
+    if (e.error === 'not-allowed' || e.error === 'service-not-allowed')
+      setStatus('Microphone blocked. Allow mic access (needs HTTPS on a phone).');
+    else if (e.error === 'no-speech') setStatus("I didn't hear anything. Try again.");
+    else if (e.error !== 'aborted') setStatus('Mic error: ' + e.error);
+  };
+  rec.onend = () => {
+    listening = false;
+    $('record').textContent = '🎤 Tap and repeat';
+    $('record').classList.remove('rec', 'pulse');
+    if (finalText) submit(finalText);
+  };
+  listening = true;
+  $('record').textContent = '⏹ Tap when done';
+  $('record').classList.add('rec', 'pulse');
+  setStatus('Listening…');
+  rec.start();
+}
+
+$('record').onclick = () => listening ? rec.stop() : startListening();
+$('listen').onclick = () => current && speak(current.text);
+$('slow').onclick = () => current && speak(current.text, true);
+$('next').onclick = loadNext;
+$('typedGo').onclick = () => $('typedText').value.trim() && submit($('typedText').value.trim());
+
+/* ---------- result ---------- */
+async function submit(transcript) {
+  const r = await fetch('/api/score/', { method: 'POST', headers: { 'X-CSRFToken': csrf() }, body: JSON.stringify({ id: current.id, transcript }) });
+  const d = await r.json();
+  showResult(d);
+}
+function showResult(d) {
+  $('sentence').innerHTML = d.words.map(w =>
+    `<span class="w ${w.status}">${w.word}${w.status === 'wrong' && w.heard ? `<small>heard “${w.heard}”</small>` : ''}${w.status === 'missed' ? '<small>missed</small>' : ''}</span>`
+  ).join(' ');
+  $('score').textContent = d.score + '%';
+  $('score').style.color = d.score >= 85 ? 'var(--ok)' : d.score >= 60 ? 'var(--close)' : 'var(--bad)';
+  $('verdict').textContent = d.score >= 95 ? 'Perfect!' : d.score >= 85 ? 'Great job!' : d.score >= 60 ? 'Getting there. Focus on the red words.' : 'Listen again and try once more.';
+  $('heard').textContent = 'I heard: “' + d.heard + '”' + (d.extra.length ? ' (extra: ' + d.extra.join(', ') + ')' : '');
+  $('result').style.display = 'block';
+  setStatus('');
+
+  const bad = d.words.filter(w => w.tip);
+  $('chips').innerHTML = '';
+  bad.forEach(w => {
+    const clean = cleanWord(w.word);
+    $('chips').appendChild(tipRow(clean, w.tip, w.ipa, saveButton(clean, w.tip, w.ipa)));
+  });
+  $('focus').style.display = bad.length ? 'block' : 'none';
+  $('record').textContent = '🎤 Try again';
+}
+
+loadSaved();
+loadNext();
+</script>
+</body>
+</html>
