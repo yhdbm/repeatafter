@@ -20,6 +20,17 @@
   .card { background:var(--card); border-radius:18px; padding:22px; }
   #sentence { font-size:28px; font-weight:600; line-height:1.35; text-align:center; }
   .w { display:inline-block; margin:2px 3px; padding:0 2px; }
+  .w.tap { cursor:pointer; -webkit-tap-highlight-color:transparent; }
+  .w.tap:hover, .w.tap.sel { color:var(--close); }
+  .hint { text-align:center; color:var(--muted); font-size:13px; margin:-6px 0 0; }
+  #wordPop { display:none; position:fixed; left:50%; bottom:calc(20px + env(safe-area-inset-bottom)); transform:translateX(-50%);
+             z-index:20; background:var(--card); border:1px solid #334155; border-radius:16px; padding:12px 40px 12px 18px;
+             box-shadow:0 8px 30px #0008; text-align:center; min-width:150px; }
+  #wordPop.open { display:block; }
+  #wordPop b { display:block; font-size:20px; color:var(--close); }
+  #wordPop .ipa { margin:2px 0 0; font-size:22px; }
+  #wordPop .none { color:var(--muted); font-size:14px; }
+  #wordPop .x { position:absolute; top:4px; right:4px; flex:none; min-height:0; width:32px; padding:4px; background:transparent; color:var(--muted); font-size:18px; }
   .w.ok { color:var(--ok); }
   .w.close { color:var(--close); }
   .w.wrong, .w.missed { color:var(--bad); font-weight:800; font-size:1.18em;
@@ -64,6 +75,8 @@
 <header><span>Repeat After Me</span><span id="stats"></span><button id="openSaved" class="hdr">★ Saved</button></header>
 <main>
   <div class="card"><div id="sentence">Loading…</div></div>
+  <p class="hint">💡 Tap any word to hear it read aloud and see its pronunciation.</p>
+  <div id="wordPop" role="dialog" aria-live="polite"><button class="x" aria-label="Close">✕</button><b></b><span class="ipa"></span></div>
 
   <div class="row">
     <button id="listen" class="sec">🔊 Listen</button>
@@ -197,13 +210,20 @@ function setStatus(t, cls) { $('status').textContent = t; $('status').className 
 
 async function loadNext() {
   $('result').style.display = $('focus').style.display = 'none';
+  closeWordPop();
   setStatus('');
   $('record').textContent = '🎤 Tap and repeat';
   const r = await fetch('/api/next/' + (current ? '?exclude=' + current.id : ''));
   const d = await r.json();
   if (!r.ok) { $('sentence').textContent = d.error; return; }
   current = d;
-  $('sentence').textContent = d.text;
+  $('sentence').replaceChildren(...d.text.split(/\s+/).filter(Boolean).flatMap((t, i) => {
+    const s = document.createElement('span');
+    s.className = 'w tap';
+    s.dataset.word = t;
+    s.textContent = t;
+    return i ? [' ', s] : [s];
+  }));
   refreshStats();
   await speak(d.text);
 }
@@ -248,6 +268,33 @@ $('record').onclick = () => listening ? rec.stop() : startListening();
 $('listen').onclick = () => current && speak(current.text);
 $('slow').onclick = () => current && speak(current.text, true);
 $('next').onclick = loadNext;
+/* tap any word in the sentence (or in the scored result) to hear it */
+function closeWordPop() {
+  $('wordPop').classList.remove('open');
+  document.querySelectorAll('.w.sel').forEach(x => x.classList.remove('sel'));
+}
+$('wordPop').querySelector('.x').onclick = closeWordPop;
+document.addEventListener('click', e => { if (!e.target.closest('.tap, #wordPop')) closeWordPop(); });
+$('sentence').addEventListener('click', async e => {
+  const el = e.target.closest('.tap');
+  const word = el && el.dataset.word.replace(/[^A-Za-z0-9']/g, '');
+  if (!word) return;
+  document.querySelectorAll('.w.sel').forEach(x => x.classList.remove('sel'));
+  el.classList.add('sel');
+  const pop = $('wordPop');
+  pop.querySelector('b').textContent = word;
+  pop.querySelector('.ipa').textContent = '…';
+  pop.classList.add('open');
+  speak(word, true);
+  try {
+    const d = await (await fetch('/api/ipa/?word=' + encodeURIComponent(word))).json();
+    if (el.classList.contains('sel')) {
+      const i = pop.querySelector('.ipa');
+      i.textContent = d.ipa || 'no pronunciation found';
+      i.classList.toggle('none', !d.ipa);
+    }
+  } catch (err) { pop.querySelector('.ipa').textContent = ''; }
+});
 $('typedGo').onclick = () => $('typedText').value.trim() && submit($('typedText').value.trim());
 
 /* ---------- result ---------- */
@@ -258,7 +305,7 @@ async function submit(transcript) {
 }
 function showResult(d) {
   $('sentence').innerHTML = d.words.map(w =>
-    `<span class="w ${w.status}">${w.word}${w.status === 'wrong' && w.heard ? `<small>heard “${w.heard}”</small>` : ''}${w.status === 'missed' ? '<small>missed</small>' : ''}</span>`
+    `<span class="w tap ${w.status}" data-word="${w.word}">${w.word}${w.status === 'wrong' && w.heard ? `<small>heard “${w.heard}”</small>` : ''}${w.status === 'missed' ? '<small>missed</small>' : ''}</span>`
   ).join(' ');
   $('score').textContent = d.score + '%';
   $('score').style.color = d.score >= 85 ? 'var(--ok)' : d.score >= 60 ? 'var(--close)' : 'var(--bad)';

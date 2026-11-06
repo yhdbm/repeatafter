@@ -8,5 +8,6 @@ urlpatterns = [
     path('api/score/', views.score, name='score'),
     path('api/tts/', views.tts, name='tts'),
     path('api/saved/', views.saved, name='saved'),
+    path('api/ipa/', views.ipa, name='ipa'),
     path('api/stats/', views.stats, name='stats'),
 ]

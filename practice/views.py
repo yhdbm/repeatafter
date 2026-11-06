@@ -90,6 +90,15 @@ def tts(request):
 
 
 @require_GET
+def ipa(request):
+    """IPA for a single word (used by the tap-a-word popup)."""
+    word = _clean_word(request.GET.get('word', ''))
+    if not word:
+        return JsonResponse({'error': 'bad request'}, status=400)
+    return JsonResponse({'word': word, 'ipa': ipa_for(word)})
+
+
+@require_GET
 def stats(request):
     qs = Attempt.objects.all()
     return JsonResponse({
