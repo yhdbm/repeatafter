@@ -61,7 +61,7 @@ TTS_VOICES = {  # neural US male voices
     'eric': 'en-US-EricNeural',
     'roger': 'en-US-RogerNeural',
 }
-TTS_DIR = settings.BASE_DIR / 'tts_cache'
+TTS_DIR = settings.TTS_DIR
 
 
 @require_GET

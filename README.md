@@ -17,3 +17,10 @@ Browsers only allow mic access on https:// or localhost. Options: tunnel with `c
 - Attempts are stored in the `Attempt` model (see /admin).
 
 - Phonetics: IPA (American English) comes from the CMU Pronouncing Dictionary via the cmudict package (practice/phonetics.py), shown with every tip. Saved words are under the ? Saved button in the header (also in /admin).
+
+## Deploy on Railway
+Config lives in `railway.json` (build runs `collectstatic`; start runs `migrate`, `seed_sentences`, then gunicorn). Static files are served by WhiteNoise.
+1. Create a service from this repo and add a **Volume** mounted at `/data`.
+2. Set variables: `DEBUG=0`, `SECRET_KEY=<long random string>`, `DATA_DIR=/data`. (`RAILWAY_PUBLIC_DOMAIN` is set by Railway and feeds `ALLOWED_HOSTS` / `CSRF_TRUSTED_ORIGINS`; add `ALLOWED_HOSTS=a.com,b.com` for custom domains.)
+3. Generate a domain; HTTPS there also satisfies the phone mic requirement.
+The SQLite DB (`db.sqlite3`) and `tts_cache/` live on the volume. Keep a single replica (SQLite).

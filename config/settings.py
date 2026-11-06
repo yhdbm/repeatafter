@@ -16,6 +16,12 @@ from pathlib import Path
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
+# Persistent data (SQLite DB + TTS cache). On Railway, mount a Volume and set
+# DATA_DIR to its mount path (e.g. /data); locally it defaults to the project dir.
+DATA_DIR = Path(os.environ.get('DATA_DIR', BASE_DIR))
+DATA_DIR.mkdir(parents=True, exist_ok=True)
+TTS_DIR = DATA_DIR / 'tts_cache'
+
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/6.1/howto/deployment/checklist/
@@ -26,7 +32,22 @@ SECRET_KEY = os.environ.get('SECRET_KEY', 'dev-only-insecure-key')  # set SECRET
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.environ.get('DEBUG', '1') == '1'  # set DEBUG=0 in any real deployment
 
-ALLOWED_HOSTS = ['*']  # LAN use from a phone
+if not DEBUG and SECRET_KEY == 'dev-only-insecure-key':
+    raise RuntimeError('Set the SECRET_KEY environment variable when DEBUG=0')
+
+# Hosts: LAN/local use keeps '*'; in production set ALLOWED_HOSTS (comma separated)
+# or rely on Railway's RAILWAY_PUBLIC_DOMAIN.
+_hosts = [h.strip() for h in os.environ.get('ALLOWED_HOSTS', '').split(',') if h.strip()]
+if os.environ.get('RAILWAY_PUBLIC_DOMAIN'):
+    _hosts.append(os.environ['RAILWAY_PUBLIC_DOMAIN'])
+ALLOWED_HOSTS = _hosts or ['*']
+CSRF_TRUSTED_ORIGINS = [f'https://{h}' for h in _hosts if h != '*']
+
+if not DEBUG:
+    # Railway terminates TLS at its proxy
+    SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
 
 
 # Application definition
@@ -43,6 +64,7 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -77,7 +99,7 @@ WSGI_APPLICATION = 'config.wsgi.application'
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+        'NAME': DATA_DIR / 'db.sqlite3',
     }
 }
 
@@ -117,6 +139,11 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/6.1/howto/static-files/
 
 STATIC_URL = 'static/'
+STATIC_ROOT = BASE_DIR / 'staticfiles'
+STORAGES = {
+    'default': {'BACKEND': 'django.core.files.storage.FileSystemStorage'},
+    'staticfiles': {'BACKEND': 'whitenoise.storage.CompressedManifestStaticFilesStorage'},
+}
 
 
 # Email
